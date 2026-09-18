@@ -508,7 +508,7 @@ function buildBoard(){
       if(k===myId) return;
       var p = people[k];
       if(!p || typeof p !== "object") return;
-      if(!p.name && !online[k] && !hasAnything(p)) return;
+      if(!online[k] && !hasAnything(p)) return;
       ids.push(k);
     });
   }
@@ -651,8 +651,17 @@ $("#skipBtn").addEventListener("click", function(){
   else pushTimer({pausedElapsed: timer.pausedElapsed + d.remaining});
 });
 $("#resetBtn").addEventListener("click", function(){
-  if(!confirm("Reset back to session 1? Targets and pushups stay on the board.")) return;
+  if(!confirm("Start a fresh day?\n\nThis clears everyone's targets and pushup counts and puts the clock back to session 1.")) return;
+  mine = { s:{} };
+  localSave();
+  people = {};
   pushTimer({running:false, startedAt:0, pausedElapsed:0});
+  if(base){
+    base.child("people").remove().catch(function(e){ showErr("Couldn't clear the board: " + e.message); });
+    base.child("cheers").remove().catch(function(){});
+  }
+  buildBoard();
+  toast("Fresh day. Board cleared for everyone.");
 });
 function numField(sel,key,min,max){
   $(sel).addEventListener("change", function(){
