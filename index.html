@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F3F0EA; --bg-break:#F7EDE2;
+  --panel:#FFFFFF; --panel-2:#FAF8F4;
+  --line:#DCD5C8; --line-soft:#E9E3D8;
+  --ink:#191917; --muted:#6C6658;
+  --focus:#106B58; --break:#C05017;
+  --accent:var(--focus);
+  --shadow:0 1px 0 var(--line-soft);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E141A; --bg-break:#1A1310;
+    --panel:#161F28; --panel-2:#121A22;
+    --line:#2A3744; --line-soft:#222E3A;
+    --ink:#E9EFF4; --muted:#8395A6;
+    --focus:#5FD3B0; --break:#FFA24D;
+    --shadow:none;
+  }
+}
+html.is-break{ --accent:var(--break); }
+html.is-break body{ background:var(--bg-break); }
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  transition:background .6s ease;
+}
+h1,h2,h3{font-family:"Bricolage Grotesque",Inter,sans-serif; margin:0; font-weight:700; letter-spacing:-.02em}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:4px}
+.wrap{max-width:1140px; margin:0 auto; padding:18px 20px 60px}
+
+.setup{
+  background:var(--panel); border:1px solid var(--break); border-left-width:4px;
+  border-radius:12px; padding:16px 18px; margin-bottom:18px; font-size:14px;
+}
+.setup h3{font-size:15px; margin-bottom:6px}
+.setup code{background:var(--panel-2); padding:1px 5px; border-radius:4px; font-size:13px}
+
+.bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-bottom:16px}
+.bar h1{font-size:19px}
+.bar .spacer{flex:1}
+.who{display:flex; align-items:center}
+.who .dot{
+  width:28px; height:28px; border-radius:50%; margin-left:-7px; border:2px solid var(--bg);
+  display:grid; place-items:center; font-size:11px; font-weight:600; color:#fff;
+}
+.who .dot:first-child{margin-left:0}
+.ghost{
+  background:transparent; border:1px solid var(--line); border-radius:999px;
+  padding:6px 13px; font-size:13px; font-weight:500; color:var(--muted);
+  text-decoration:none; display:inline-block;
+}
+.ghost:hover{color:var(--ink); border-color:var(--muted)}
+
+.stage{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:26px 26px 20px; box-shadow:var(--shadow)}
+.phaseline{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px}
+.phase{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:17px; color:var(--accent)}
+.sess{font-size:14px; color:var(--muted)}
+.clock{
+  font-family:"Bricolage Grotesque",sans-serif; font-weight:800;
+  font-size:clamp(62px,15vw,124px); line-height:.92; letter-spacing:-.045em;
+  font-variant-numeric:tabular-nums; margin:2px 0 4px;
+}
+.clock.dim{color:var(--muted); opacity:.45}
+.strip{position:relative; height:12px; display:flex; gap:3px; margin:16px 0 4px}
+.seg{border-radius:3px; background:var(--line-soft); border:1px solid var(--line)}
+.seg.f{flex:50}.seg.b{flex:10}
+.strip .fill{position:absolute; inset:0 auto 0 0; background:var(--accent); opacity:.22; border-radius:3px; pointer-events:none}
+.strip .head{position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--accent); border-radius:2px}
+.striplab{display:flex; justify-content:space-between; font-size:12px; color:var(--muted)}
+.controls{display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; align-items:center}
+.btn{border:1px solid var(--line); background:var(--panel-2); border-radius:9px; padding:9px 16px; font-weight:500; font-size:14px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:var(--panel); font-weight:600}
+html.is-break .btn.primary{color:#fff}
+.mins{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); margin-left:auto; flex-wrap:wrap}
+.mins input{width:46px; padding:6px 7px; font:inherit; font-size:13px; text-align:center; border:1px solid var(--line); border-radius:7px; background:var(--panel-2); color:var(--ink)}
+
+.challenge{margin-top:14px; background:var(--panel); border:1px solid var(--accent); border-radius:14px; padding:20px 24px; display:none; gap:20px; align-items:center; flex-wrap:wrap}
+html.is-break .challenge{display:flex}
+.challenge h2{font-size:20px}
+.challenge p{margin:3px 0 0; color:var(--muted); font-size:14px}
+.challenge .grow{flex:1; min-width:180px}
+.done-row{display:flex; gap:8px; align-items:center}
+.step{width:36px; height:36px; border-radius:9px; border:1px solid var(--line); background:var(--panel-2); font-size:17px; line-height:1}
+
+.boardhead{display:flex; align-items:baseline; gap:10px; margin:30px 2px 12px; flex-wrap:wrap}
+.boardhead h2{font-size:16px}
+.boardhead span{font-size:13px; color:var(--muted)}
+.board{display:grid; grid-template-columns:repeat(auto-fill,minmax(252px,1fr)); gap:14px}
+.col{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 16px 12px; box-shadow:var(--shadow)}
+.col.me{border-color:var(--accent)}
+.colhead{display:flex; align-items:center; gap:9px; margin-bottom:12px}
+.colhead .dot{width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:600; color:#fff; flex:none}
+.colhead .nm{font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.colhead .live{width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none}
+.colhead .live.off{background:var(--line)}
+.colhead .cnt{margin-left:auto; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+ul.items{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px}
+li.item{display:flex; align-items:center; gap:9px; padding:3px 0}
+li.item input[type=checkbox]{appearance:none; width:17px; height:17px; flex:none; border:1.5px solid var(--line); border-radius:5px; background:var(--panel-2); position:relative; cursor:pointer}
+li.item input[type=checkbox]:checked{background:var(--accent); border-color:var(--accent)}
+li.item input[type=checkbox]:checked::after{content:""; position:absolute; left:5px; top:1.5px; width:4px; height:9px; border:solid var(--panel); border-width:0 2px 2px 0; transform:rotate(43deg)}
+html.is-break li.item input[type=checkbox]:checked::after{border-color:#fff}
+li.item input[type=text]{flex:1; min-width:0; border:none; background:transparent; font:inherit; font-size:14px; color:var(--ink); padding:2px 0; border-bottom:1px solid transparent}
+li.item input[type=text]:focus{outline:none; border-bottom-color:var(--line)}
+li.item.done input[type=text]{color:var(--muted); text-decoration:line-through}
+li.item .x{border:none; background:none; color:var(--line); padding:0 2px; font-size:15px; line-height:1}
+li.item .x:hover{color:var(--break)}
+li.item.ro span{flex:1; font-size:14px}
+li.item.ro.done span{color:var(--muted); text-decoration:line-through}
+.add{margin-top:8px; border:none; background:none; color:var(--muted); font-size:13px; padding:4px 0; font-weight:500}
+.add:hover{color:var(--accent)}
+.empty{font-size:13px; color:var(--muted); padding:6px 0 2px}
+.tallyrow{display:flex; align-items:center; gap:9px; margin-top:12px; padding-top:11px; border-top:1px solid var(--line-soft)}
+.tallyrow svg{display:block; overflow:visible}
+.tallyrow .num{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums}
+.tallyrow .lbl{font-size:12px; color:var(--muted); margin-left:auto}
+
+.note{margin-top:26px; font-size:13px; color:var(--muted); text-align:center; border-top:1px solid var(--line-soft); padding-top:18px}
+.toasts{position:fixed; left:0; right:0; bottom:22px; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; z-index:20}
+.toast{background:var(--ink); color:var(--bg); padding:9px 17px; border-radius:999px; font-size:14px; font-weight:500; animation:rise .3s ease}
+@keyframes rise{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
+.modal{position:fixed; inset:0; background:rgba(0,0,0,.45); display:grid; place-items:center; z-index:30; padding:20px}
+.modal .card{background:var(--panel); border-radius:16px; padding:26px; max-width:380px; width:100%}
+.modal h2{font-size:19px; margin-bottom:6px}
+.modal p{margin:0 0 16px; color:var(--muted); font-size:14px}
+.modal input{width:100%; padding:11px 13px; font:inherit; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--ink); margin-bottom:12px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:560px){.wrap{padding:14px 14px 50px}.stage{padding:20px 18px 16px}.mins{margin-left:0; width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="setup" id="setup" style="display:none">
+    <h3>Not connected yet</h3>
+    <p style="margin:0">Paste your Firebase <code>apiKey</code> and <code>databaseURL</code> into the <code>FB</code> block near the top of this file's script, then reload. Until then the board works, but only on this device.</p>
+  </div>
+
+  <div class="bar">
+    <h1>Study room</h1>
+    <div class="who" id="who"></div>
+    <div class="spacer"></div>
+    <a class="ghost" id="timerLink" href="https://www.sharemytimer.live/viewer?timer=mt737rgrew7mg7io7iu" target="_blank" rel="noopener">ShareMyTimer</a>
+    <button class="ghost" id="nameBtn">Change name</button>
+    <button class="ghost" id="soundBtn" aria-pressed="true">Sound on</button>
+  </div>
+
+  <section class="stage">
+    <div class="phaseline">
+      <span class="phase" id="phase">Ready</span>
+      <span class="sess" id="sess">Session 1 of the day</span>
+    </div>
+    <div class="clock dim" id="clock">50:00</div>
+    <div class="strip" id="strip">
+      <div class="seg f"></div><div class="seg b"></div>
+      <div class="fill" id="fill" style="width:0"></div>
+      <div class="head" id="head" style="left:0"></div>
+    </div>
+    <div class="striplab"><span id="labF">50 min focus</span><span id="labB">10 min break</span></div>
+    <div class="controls">
+      <button class="btn primary" id="startBtn">Start</button>
+      <button class="btn" id="skipBtn">Skip ahead</button>
+      <button class="btn" id="resetBtn">Reset day</button>
+      <div class="mins">
+        <label>Focus <input id="fMin" type="number" min="1" max="180" value="50"></label>
+        <label>Break <input id="bMin" type="number" min="1" max="60" value="10"></label>
+        <label>Pushups <input id="pTarget" type="number" min="1" max="200" value="10"></label>
+      </div>
+    </div>
+  </section>
+
+  <section class="challenge" id="challenge">
+    <div class="grow">
+      <h2 id="chTitle">10 pushup challenge</h2>
+      <p id="chSub">Break time. Log them when you're done and everyone sees it.</p>
+    </div>
+    <div class="done-row">
+      <button class="step" id="minusBtn" title="Log fewer">−</button>
+      <button class="btn primary" id="doneBtn">I did my 10</button>
+    </div>
+  </section>
+
+  <div class="boardhead">
+    <h2 id="boardTitle">Targets for session 1</h2>
+    <span id="boardSub"></span>
+  </div>
+  <div class="board" id="board"></div>
+
+  <p class="note" id="note"></p>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<div class="modal" id="nameModal" style="display:none">
+  <div class="card">
+    <h2>What should we call you?</h2>
+    <p>Your friends will see this next to your targets.</p>
+    <input id="nameInput" maxlength="24" placeholder="Your name" autocomplete="off">
+    <button class="btn primary" id="nameSave" style="width:100%">Join the room</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ============================================================
+   1. PASTE YOUR FIREBASE DETAILS HERE
+   Firebase console -> Project settings -> Your apps -> Web app.
+   You only need these two lines.
+   ============================================================ */
+var FB = {
+  apiKey:      "AIzaSyC4imGhRphWw9bBnY20BdEwzy4EQrGglgk",
+  databaseURL: "https://study-room-cb02b-default-rtdb.firebaseio.com"
+};
+
+/* Everyone who opens the same link lands in the same room.
+   Change the room by adding #ourgroup to the end of the URL. */
+var ROOM = (location.hash || "").replace("#","").trim() || "default";
+
+(function(){
+"use strict";
+
+var DEF = { running:false, startedAt:0, pausedElapsed:0, focusMin:50, breakMin:10, pushups:10 };
+var timer = Object.assign({}, DEF);
+var rdb=null, base=null, connected=false, skew=0;
+var people = {};            // id -> {name, color, s:{}}
+var online = {};            // id -> true
+var mine = { s:{} };
+var myId, myName, myColor;
+var soundOn = true, booted=false, lastPhase=null, lastSession=null, pageOpenedAt=Date.now();
+
+var $ = function(s){ return document.querySelector(s); };
+function el(t,c,txt){ var n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; }
+function rid(){ return Math.random().toString(36).slice(2,10); }
+function now(){ return Date.now() + skew; }
+
+var PALETTE = ["#E0603A","#2D8C6F","#4A6FD4","#B84A9C","#C08A1E","#3E9CBF","#8A5CC4","#6B8E23"];
+
+/* ---------- identity ---------- */
+function loadMe(){
+  try{
+    myId = localStorage.getItem("sr_id");
+    myName = localStorage.getItem("sr_name");
+    myColor = localStorage.getItem("sr_color");
+  }catch(e){}
+  if(!myId){ myId = rid(); try{ localStorage.setItem("sr_id", myId); }catch(e){} }
+  if(!myColor){
+    myColor = PALETTE[Math.floor(Math.random()*PALETTE.length)];
+    try{ localStorage.setItem("sr_color", myColor); }catch(e){}
+  }
+}
+function askName(){
+  var m = $("#nameModal"); m.style.display = "grid";
+  var inp = $("#nameInput"); inp.value = myName || ""; inp.focus();
+  function save(){
+    var v = inp.value.trim(); if(!v) { inp.focus(); return; }
+    myName = v.slice(0,24);
+    try{ localStorage.setItem("sr_name", myName); }catch(e){}
+    m.style.display = "none";
+    pushMe(); announce(); buildBoard();
+  }
+  $("#nameSave").onclick = save;
+  inp.onkeydown = function(e){ if(e.key === "Enter") save(); };
+}
+
+/* ---------- rhythm ---------- */
+function derive(t){
+  var f = Math.max(1,timer.focusMin)*60000, b = Math.max(1,timer.breakMin)*60000, cyc = f+b;
+  var elapsed = timer.running ? Math.max(0, t - timer.startedAt) : (timer.pausedElapsed||0);
+  var idx = Math.floor(elapsed/cyc), within = elapsed % cyc, inFocus = within < f;
+  return {
+    session: idx+1,
+    phase: inFocus ? "focus" : "break",
+    remaining: inFocus ? f-within : cyc-within,
+    cycleFrac: within/cyc,
+    started: timer.running || (timer.pausedElapsed||0) > 0
+  };
+}
+function mmss(ms){ var t=Math.max(0,Math.ceil(ms/1000)); return Math.floor(t/60)+":"+String(t%60).padStart(2,"0"); }
+
+/* ---------- storage ---------- */
+function localSave(){ try{ localStorage.setItem("sr_data", JSON.stringify({timer:timer, mine:mine})); }catch(e){} }
+function localLoad(){
+  try{
+    var raw = localStorage.getItem("sr_data"); if(!raw) return;
+    var o = JSON.parse(raw);
+    if(o.timer) Object.assign(timer, o.timer);
+    if(o.mine && o.mine.s) mine = o.mine;
+  }catch(e){}
+}
+function pushTimer(patch){
+  Object.assign(timer, patch);
+  paint();
+  localSave();
+  if(base) base.child("timer").set({
+    running:!!timer.running, startedAt:timer.startedAt||0, pausedElapsed:timer.pausedElapsed||0,
+    focusMin:timer.focusMin, breakMin:timer.breakMin, pushups:timer.pushups
+  });
+}
+var saveT=null;
+function pushMe(){
+  paintMyTotals(); localSave();
+  if(!base) return;
+  clearTimeout(saveT);
+  saveT = setTimeout(function(){
+    base.child("people/"+myId).set({
+      name: myName || "Someone", color: myColor,
+      s: JSON.parse(JSON.stringify(mine.s)), at: Date.now()
+    });
+  }, 450);
+}
+function announce(){
+  if(!base || !connected) return;
+  var p = base.child("online/"+myId);
+  p.onDisconnect().remove();
+  p.set(true);
+}
+
+/* ---------- buckets ---------- */
+function bucket(store,n){
+  var k=String(n);
+  if(!store.s[k]) store.s[k]={items:[],push:0};
+  if(!Array.isArray(store.s[k].items)) store.s[k].items=[];
+  return store.s[k];
+}
+function readBucket(data,n){
+  var b = data && data.s && data.s[String(n)];
+  return { items: (b && Array.isArray(b.items)) ? b.items : [], push: (b && +b.push) || 0 };
+}
+function dayPush(d){ var t=0,s=d&&d.s; if(!s) return 0; for(var k in s) t+=(+s[k].push)||0; return t; }
+function dayDone(d){ var c=0,s=d&&d.s; if(!s) return 0; for(var k in s){ var it=s[k].items||[]; for(var i=0;i<it.length;i++) if(it[i].d) c++; } return c; }
+
+/* ---------- tally ---------- */
+function tallySvg(n){
+  var groups=Math.floor(n/5), rest=n%5, ns="http://www.w3.org/2000/svg";
+  var shown=Math.min(groups,6);
+  var w=shown*22+(rest?rest*5+6:0)+2;
+  var svg=document.createElementNS(ns,"svg");
+  svg.setAttribute("height","16"); svg.setAttribute("width",String(Math.max(w,4))); svg.setAttribute("aria-hidden","true");
+  var x=1;
+  function line(a,b,c,d){ var l=document.createElementNS(ns,"line"); l.setAttribute("x1",a);l.setAttribute("y1",b);l.setAttribute("x2",c);l.setAttribute("y2",d); l.setAttribute("stroke","currentColor"); l.setAttribute("stroke-width","1.8"); l.setAttribute("stroke-linecap","round"); svg.appendChild(l); }
+  for(var g=0;g<shown;g++){ for(var i=0;i<4;i++) line(x+i*4,1,x+i*4,15); line(x-2,14,x+14,2); x+=22; }
+  for(var r=0;r<rest;r++){ line(x,1,x,15); x+=5; }
+  svg.style.color="var(--accent)";
+  return svg;
+}
+
+/* ---------- sound + toast ---------- */
+var actx=null;
+function beep(seq){
+  if(!soundOn) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    seq.forEach(function(f,i){
+      var o=actx.createOscillator(), g=actx.createGain(), t=actx.currentTime+i*0.18;
+      o.frequency.value=f; o.type="sine";
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.16,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.34);
+      o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+0.36);
+    });
+  }catch(e){}
+}
+function toast(msg){
+  var t=el("div","toast",msg); $("#toasts").appendChild(t);
+  setTimeout(function(){ t.remove(); }, 3600);
+}
+
+/* ---------- paint ---------- */
+function paint(){
+  var d=derive(now()), isBreak = d.started && d.phase==="break";
+  document.documentElement.classList.toggle("is-break", isBreak);
+  $("#phase").textContent = !d.started ? "Ready when you are" : (isBreak ? "Break" : "Focus");
+  $("#sess").textContent = "Session "+d.session+" of the day";
+  var c=$("#clock");
+  c.textContent = d.started ? mmss(d.remaining) : mmss(timer.focusMin*60000);
+  c.classList.toggle("dim", !d.started);
+  document.title = (d.started ? mmss(d.remaining)+" · " : "") + (isBreak ? "Break" : "Study room");
+  var pct = d.started ? d.cycleFrac*100 : 0;
+  $("#fill").style.width = pct+"%"; $("#head").style.left = pct+"%";
+  $("#labF").textContent = timer.focusMin+" min focus";
+  $("#labB").textContent = timer.breakMin+" min break";
+  $("#startBtn").textContent = timer.running ? "Pause" : (d.started ? "Resume" : "Start");
+  $("#chTitle").textContent = timer.pushups+" pushup challenge";
+  $("#doneBtn").textContent = "I did my "+timer.pushups;
+  $("#boardTitle").textContent = "Targets for session "+d.session;
+  if(document.activeElement!==$("#fMin")) $("#fMin").value = timer.focusMin;
+  if(document.activeElement!==$("#bMin")) $("#bMin").value = timer.breakMin;
+  if(document.activeElement!==$("#pTarget")) $("#pTarget").value = timer.pushups;
+}
+function editingMine(){ var a=document.activeElement; return !!(a && a.closest && a.closest(".col.me")); }
+
+var pending=false;
+function buildBoard(){
+  if(editingMine()){
+    if(!pending){
+      pending=true;
+      document.addEventListener("focusout", function once(){
+        document.removeEventListener("focusout", once); pending=false;
+        setTimeout(function(){ if(!editingMine()) buildBoard(); },80);
+      });
+    }
+    return;
+  }
+  var d=derive(now()), board=$("#board");
+  var ids=[myId];
+  Object.keys(people).forEach(function(k){ if(k!==myId) ids.push(k); });
+  board.innerHTML="";
+  var totalPush=0, totalDone=0;
+  ids.forEach(function(id){
+    var isMe = id===myId;
+    var data = isMe ? mine : (people[id]||{s:{}});
+    totalPush += dayPush(data); totalDone += dayDone(data);
+    board.appendChild(column(id, isMe, data, d.session));
+  });
+  var sub=[];
+  if(totalDone) sub.push(totalDone+" targets hit today");
+  if(totalPush) sub.push(totalPush+" pushups between you");
+  $("#boardSub").textContent = sub.join(" · ");
+  paintWho();
+}
+
+function avatar(name, color, cls){
+  var n = el("div", cls||"dot", (name||"?").trim().charAt(0).toUpperCase());
+  n.style.background = color || "#888"; n.title = name || "Someone";
+  return n;
+}
+
+function column(id, isMe, data, session){
+  var b = readBucket(data, session);
+  var col = el("div","col"+(isMe?" me":""));
+  col.dataset.id = id;
+  var head = el("div","colhead");
+  head.appendChild(avatar(isMe?myName:data.name, isMe?myColor:data.color));
+  head.appendChild(el("div","nm", isMe ? (myName ? myName+" (you)" : "You") : (data.name || "Someone")));
+  var live = el("span","live"+((isMe || online[id]) ? "" : " off"));
+  live.title = (isMe || online[id]) ? "Here now" : "Not in the room";
+  head.appendChild(live);
+  var done = b.items.filter(function(i){return i.d;}).length;
+  head.appendChild(el("span","cnt", b.items.length ? done+"/"+b.items.length : ""));
+  col.appendChild(head);
+
+  var ul = el("ul","items");
+  if(!b.items.length && !isMe) ul.appendChild(el("li","empty","No targets set yet"));
+  b.items.forEach(function(item,i){ ul.appendChild(isMe ? myRow(item,i,session) : theirRow(item)); });
+  col.appendChild(ul);
+
+  if(isMe){
+    var add = el("button","add","+ add a target");
+    add.addEventListener("click", function(){
+      bucket(mine,session).items.push({id:rid(), t:"", d:false});
+      pushMe(); renderMine(session, true);
+    });
+    col.appendChild(add);
+  }
+  var tr = el("div","tallyrow");
+  tr.appendChild(tallySvg(b.push));
+  tr.appendChild(el("span","num", String(b.push)));
+  tr.appendChild(el("span","lbl", dayPush(data)+" today"));
+  col.appendChild(tr);
+  return col;
+}
+function myRow(item, idx, session){
+  var li = el("li","item"+(item.d?" done":""));
+  var cb = el("input"); cb.type="checkbox"; cb.checked=!!item.d; cb.setAttribute("aria-label","Mark done");
+  cb.addEventListener("change", function(){
+    item.d = cb.checked; li.classList.toggle("done", cb.checked); pushMe(); countMine(session);
+  });
+  var tx = el("input"); tx.type="text"; tx.value=item.t||""; tx.placeholder="What are you finishing?";
+  tx.addEventListener("input", function(){ item.t=tx.value; pushMe(); });
+  tx.addEventListener("keydown", function(e){
+    if(e.key==="Enter"){ e.preventDefault(); bucket(mine,session).items.splice(idx+1,0,{id:rid(),t:"",d:false}); pushMe(); renderMine(session,true); }
+  });
+  var x = el("button","x","×"); x.title="Remove"; x.setAttribute("aria-label","Remove target");
+  x.addEventListener("click", function(){ bucket(mine,session).items.splice(idx,1); pushMe(); renderMine(session); });
+  li.appendChild(cb); li.appendChild(tx); li.appendChild(x);
+  return li;
+}
+function theirRow(item){
+  var li = el("li","item ro"+(item.d?" done":""));
+  var cb = el("input"); cb.type="checkbox"; cb.checked=!!item.d; cb.disabled=true;
+  li.appendChild(cb); li.appendChild(el("span",null,item.t||"…"));
+  return li;
+}
+function renderMine(session, focusLast){
+  var col=document.querySelector(".col.me"); if(!col){ buildBoard(); return; }
+  var ul=col.querySelector("ul.items"), b=bucket(mine,session);
+  ul.innerHTML="";
+  b.items.forEach(function(it,i){ ul.appendChild(myRow(it,i,session)); });
+  countMine(session);
+  if(focusLast){ var ins=ul.querySelectorAll("input[type=text]"); if(ins.length) ins[ins.length-1].focus(); }
+}
+function countMine(session){
+  var col=document.querySelector(".col.me"); if(!col) return;
+  var b=bucket(mine,session), done=b.items.filter(function(i){return i.d;}).length;
+  col.querySelector(".cnt").textContent = b.items.length ? done+"/"+b.items.length : "";
+}
+function paintMyTotals(){
+  var col=document.querySelector(".col.me"); if(!col) return;
+  var b=bucket(mine, derive(now()).session), tr=col.querySelector(".tallyrow");
+  tr.innerHTML="";
+  tr.appendChild(tallySvg(b.push));
+  tr.appendChild(el("span","num",String(b.push)));
+  tr.appendChild(el("span","lbl", dayPush(mine)+" today"));
+}
+function paintWho(){
+  var box=$("#who"); box.innerHTML="";
+  var ids=Object.keys(online).filter(function(k){ return online[k]; });
+  if(ids.indexOf(myId)<0 && connected) ids.unshift(myId);
+  ids.slice(0,8).forEach(function(id){
+    var p = id===myId ? {name:myName,color:myColor} : (people[id]||{});
+    box.appendChild(avatar(p.name, p.color));
+  });
+}
+
+/* ---------- controls ---------- */
+$("#startBtn").addEventListener("click", function(){
+  var t=now();
+  if(timer.running) pushTimer({running:false, pausedElapsed: t-timer.startedAt});
+  else pushTimer({running:true, startedAt: t-(timer.pausedElapsed||0), pausedElapsed:0});
+  if(actx && actx.state==="suspended") actx.resume();
+});
+$("#skipBtn").addEventListener("click", function(){
+  var d=derive(now());
+  if(!d.started){ $("#startBtn").click(); return; }
+  if(timer.running) pushTimer({startedAt: timer.startedAt - d.remaining});
+  else pushTimer({pausedElapsed: timer.pausedElapsed + d.remaining});
+});
+$("#resetBtn").addEventListener("click", function(){
+  if(!confirm("Reset back to session 1? Targets and pushups stay on the board.")) return;
+  pushTimer({running:false, startedAt:0, pausedElapsed:0});
+});
+function numField(sel,key,min,max){
+  $(sel).addEventListener("change", function(){
+    var v=Math.min(max,Math.max(min, parseInt($(sel).value,10)||min));
+    $(sel).value=v; var p={}; p[key]=v; pushTimer(p);
+  });
+}
+numField("#fMin","focusMin",1,180);
+numField("#bMin","breakMin",1,60);
+numField("#pTarget","pushups",1,200);
+
+$("#doneBtn").addEventListener("click", function(){
+  var b=bucket(mine, derive(now()).session);
+  b.push=(b.push||0)+timer.pushups;
+  pushMe(); beep([660,880]);
+  toast("Logged "+timer.pushups+". Nice.");
+  if(base) base.child("cheers").push({ name:myName||"Someone", n:timer.pushups, at:Date.now() });
+});
+$("#minusBtn").addEventListener("click", function(){
+  var b=bucket(mine, derive(now()).session);
+  b.push=Math.max(0,(b.push||0)-timer.pushups);
+  pushMe();
+});
+$("#soundBtn").addEventListener("click", function(){
+  soundOn=!soundOn;
+  $("#soundBtn").textContent = soundOn?"Sound on":"Sound off";
+  $("#soundBtn").setAttribute("aria-pressed", String(soundOn));
+  if(soundOn) beep([760]);
+});
+$("#nameBtn").addEventListener("click", askName);
+
+/* ---------- tick ---------- */
+setInterval(function(){
+  var d=derive(now());
+  if(booted && d.started && (d.phase!==lastPhase || d.session!==lastSession)){
+    if(d.phase==="break"){ beep([880,660,880]); toast(timer.pushups+" pushups — go."); }
+    else { beep([520,700]); toast("Session "+d.session+". Set your targets."); }
+    buildBoard();
+  }
+  lastPhase=d.phase; lastSession=d.session; booted=true;
+  paint();
+}, 250);
+
+/* ---------- boot ---------- */
+loadMe();
+localLoad();
+paint();
+buildBoard();
+if(!myName) askName();
+
+var configured = FB.apiKey.indexOf("PASTE") < 0 && FB.databaseURL.indexOf("PASTE") < 0;
+if(!configured){
+  $("#setup").style.display = "block";
+  $("#note").textContent = "Local mode: your board is saved on this device only.";
+} else {
+  try{
+    firebase.initializeApp({ apiKey: FB.apiKey, databaseURL: FB.databaseURL });
+    rdb = firebase.database();
+    base = rdb.ref("rooms/"+ROOM);
+    $("#note").textContent = 'Room "'+ROOM+'". Everyone on this link sees the same timer, targets and pushups, live.';
+
+    rdb.ref(".info/serverTimeOffset").on("value", function(s){ skew = s.val()||0; });
+    rdb.ref(".info/connected").on("value", function(s){
+      connected = !!s.val();
+      if(connected){ announce(); pushMe(); }
+      paintWho();
+    });
+
+    base.child("timer").on("value", function(s){
+      var v = s.val(); if(!v) return;
+      timer = Object.assign({}, DEF, {
+        running:!!v.running, startedAt:+v.startedAt||0, pausedElapsed:+v.pausedElapsed||0,
+        focusMin:+v.focusMin||50, breakMin:+v.breakMin||10, pushups:+v.pushups||10
+      });
+      paint();
+    });
+
+    base.child("people").on("value", function(s){
+      var v = s.val() || {};
+      people = v;
+      var m = v[myId];
+      if(m && m.s && !editingMine()) mine = { s: JSON.parse(JSON.stringify(m.s)) };
+      buildBoard();
+    });
+
+    base.child("online").on("value", function(s){ online = s.val() || {}; buildBoard(); });
+
+    base.child("cheers").limitToLast(1).on("child_added", function(s){
+      var v = s.val() || {};
+      if(!v.at || v.at < pageOpenedAt) return;
+      if(v.name === myName) return;
+      toast((v.name||"Someone")+" knocked out "+(v.n||10)+".");
+    });
+  }catch(e){
+    $("#setup").style.display="block";
+    $("#note").textContent = "Couldn't connect — check the apiKey and databaseURL. Running locally for now.";
+  }
+}
+
+window.addEventListener("hashchange", function(){ location.reload(); });
+})();
+</script>
+</body>
+</html>
