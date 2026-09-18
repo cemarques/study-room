@@ -144,6 +144,20 @@ li.item.ro.done span{color:var(--muted); text-decoration:line-through}
 .tallyrow svg{display:block; overflow:visible}
 .tallyrow .num{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums}
 .tallyrow .lbl{font-size:12px; color:var(--muted); margin-left:auto}
+.tick{
+  border:1px solid var(--line); background:var(--panel-2); color:var(--muted);
+  width:24px; height:24px; border-radius:6px; padding:0; line-height:1; font-size:14px; flex:none;
+}
+.tick:hover{color:var(--ink); border-color:var(--muted)}
+.pushin{
+  width:48px; padding:3px 4px; text-align:center;
+  font-family:"Bricolage Grotesque",Inter,sans-serif; font-weight:700; font-size:15px;
+  font-variant-numeric:tabular-nums; color:var(--ink);
+  border:1px solid transparent; border-radius:6px; background:transparent;
+}
+.pushin:focus{border-color:var(--line); background:var(--panel-2); outline:none}
+.pushin::-webkit-outer-spin-button,.pushin::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+.pushin{-moz-appearance:textfield}
 
 .note{margin-top:26px; font-size:13px; color:var(--muted); text-align:center; border-top:1px solid var(--line-soft); padding-top:18px}
 .toasts{position:fixed; left:0; right:0; bottom:22px; display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; z-index:20}
@@ -236,7 +250,7 @@ li.item.ro.done span{color:var(--muted); text-decoration:line-through}
 <div class="modal" id="nameModal" style="display:none">
   <div class="card">
     <h2>What should we call you?</h2>
-    <p>Your friends will see this next to your targets.</p>
+    <p>Your friends will see this next to your targets. Using a name that's already on the board picks that board back up — handy when you switch device or browser.</p>
     <input id="nameInput" maxlength="24" placeholder="Your name" autocomplete="off">
     <button class="btn primary" id="nameSave" style="width:100%">Join the room</button>
   </div>
@@ -295,6 +309,33 @@ function loadMe(){
     try{ localStorage.setItem("sr_color", myColor); }catch(e){}
   }
 }
+/* Identity lives in this browser, so a different browser or device makes
+   a new person. Typing a name that already has a board offers to pick
+   that board up instead of starting a second empty one. */
+function findByName(name){
+  var hit = null, want = String(name).trim().toLowerCase();
+  if(!want || !people || typeof people !== "object") return null;
+  Object.keys(people).forEach(function(k){
+    if(k === myId) return;
+    var p = people[k];
+    if(p && p.name && String(p.name).trim().toLowerCase() === want) hit = { id:k, row:p };
+  });
+  return hit;
+}
+function adopt(id, row){
+  var oldId = myId;
+  myId = id;
+  try{ localStorage.setItem("sr_id", myId); }catch(e){}
+  if(row.color){ myColor = row.color; try{ localStorage.setItem("sr_color", myColor); }catch(e){} }
+  mine = { s: normSessions(row.s) };
+  localSave();
+  if(base && oldId && oldId !== id){
+    base.child("online/"+oldId).remove().catch(function(){});
+    if(!hasAnything(people[oldId])) base.child("people/"+oldId).remove().catch(function(){});
+  }
+  announce(); pushMe(); forceBoard();
+  toast("Picked up your board.");
+}
 function askName(){
   var m = $("#nameModal"); m.style.display = "grid";
   var inp = $("#nameInput"); inp.value = myName || ""; inp.focus();
@@ -303,6 +344,11 @@ function askName(){
     myName = v.slice(0,24);
     try{ localStorage.setItem("sr_name", myName); }catch(e){}
     m.style.display = "none";
+    var match = findByName(myName);
+    if(match && confirm('There is already a board for "' + myName + '".\n\nContinue as them and pick up their targets and pushups?')){
+      adopt(match.id, match.row);
+      return;
+    }
     pushMe(); announce(); buildBoard();
   }
   $("#nameSave").onclick = save;
@@ -463,6 +509,28 @@ function carryForward(from, to){
   if(todo.length) toast(todo.length === 1 ? "1 unfinished target carried over." : todo.length + " unfinished targets carried over.");
 }
 
+/* The most recent earlier session that still has targets on it. */
+function prevSessionWithItems(to){
+  var best = 0;
+  Object.keys(mine.s).forEach(function(k){
+    var m = /^s(\d+)$/.exec(k); if(!m) return;
+    var n = +m[1];
+    if(n >= to) return;
+    var b = mine.s[k];
+    if(b && normItems(b.items).length && n > best) best = n;
+  });
+  return best;
+}
+/* Called on every draw, not just at the rollover tick, so a reload, a
+   late join or a jump across several sessions all still carry over. */
+function ensureCarry(to){
+  if(!(to > 1)) return;
+  var b = mine.s["s"+to];
+  if(b && (b.seeded || normItems(b.items).length)) return;
+  var from = prevSessionWithItems(to);
+  if(from) carryForward(from, to);
+}
+
 function hasAnything(p){
   if(!p) return false;
   if(dayPush(p) > 0 || dayDone(p) > 0) return true;
@@ -566,6 +634,7 @@ function buildBoard(){
     return;
   }
   var d=derive(now()), board=$("#board"), session=curSession();
+  ensureCarry(d.session);
   var ids=[myId];
   if(people && typeof people === "object"){
     Object.keys(people).forEach(function(k){
@@ -613,6 +682,44 @@ function avatar(name, color, cls){
   return n;
 }
 
+/* The tally row. On your own column it's editable in whatever session
+   you're viewing, so a forgotten count can be entered afterwards. */
+function fillTally(tr, isMe, data, session){
+  tr.innerHTML = "";
+  var b = readBucket(data, session);
+  tr.appendChild(tallySvg(b.push));
+  if(isMe){
+    var minus = el("button","tick","−");
+    minus.title = "Take off " + timer.pushups;
+    minus.setAttribute("aria-label", minus.title);
+    minus.addEventListener("click", function(){
+      var bb = bucket(mine, session);
+      bb.push = Math.max(0, (bb.push||0) - timer.pushups);
+      pushMe();
+    });
+    var inp = el("input","pushin");
+    inp.type="number"; inp.min="0"; inp.max="9999"; inp.value = String(b.push);
+    inp.setAttribute("aria-label","Pushups in session " + session);
+    inp.addEventListener("change", function(){
+      var bb = bucket(mine, session);
+      bb.push = Math.max(0, Math.min(9999, parseInt(inp.value,10)||0));
+      pushMe();
+    });
+    var plus = el("button","tick","+");
+    plus.title = "Add " + timer.pushups;
+    plus.setAttribute("aria-label", plus.title);
+    plus.addEventListener("click", function(){
+      var bb = bucket(mine, session);
+      bb.push = (bb.push||0) + timer.pushups;
+      pushMe();
+    });
+    tr.appendChild(minus); tr.appendChild(inp); tr.appendChild(plus);
+  } else {
+    tr.appendChild(el("span","num", String(b.push)));
+  }
+  tr.appendChild(el("span","lbl", dayPush(data)+" today"));
+}
+
 function column(id, isMe, data, session){
   var b = readBucket(data, session);
   var col = el("div","col"+(isMe?" me":""));
@@ -641,9 +748,7 @@ function column(id, isMe, data, session){
     col.appendChild(add);
   }
   var tr = el("div","tallyrow");
-  tr.appendChild(tallySvg(b.push));
-  tr.appendChild(el("span","num", String(b.push)));
-  tr.appendChild(el("span","lbl", dayPush(data)+" today"));
+  fillTally(tr, isMe, data, session);
   col.appendChild(tr);
   return col;
 }
@@ -684,11 +789,9 @@ function countMine(session){
 }
 function paintMyTotals(){
   var col=document.querySelector(".col.me"); if(!col) return;
-  var b=bucket(mine, curSession()), tr=col.querySelector(".tallyrow");
-  tr.innerHTML="";
-  tr.appendChild(tallySvg(b.push));
-  tr.appendChild(el("span","num",String(b.push)));
-  tr.appendChild(el("span","lbl", dayPush(mine)+" today"));
+  var tr=col.querySelector(".tallyrow"); if(!tr) return;
+  if(tr.querySelector(".pushin") === document.activeElement) return;
+  fillTally(tr, true, mine, curSession());
 }
 function paintWho(){
   var box=$("#who"); box.innerHTML="";
@@ -787,7 +890,7 @@ $("#nameBtn").addEventListener("click", askName);
 setInterval(function(){
   var d=derive(now());
   if(booted && d.started && (d.phase!==lastPhase || d.session!==lastSession)){
-    if(d.session > lastSession) carryForward(lastSession, d.session);
+    if(d.session > lastSession) ensureCarry(d.session);
     if(Date.now() > quietUntil){
       if(d.phase==="break"){ beep([880,660,880]); toast(timer.pushups+" pushups — go."); }
       else { beep([520,700]); toast("Session "+d.session+". Set your targets."); }
