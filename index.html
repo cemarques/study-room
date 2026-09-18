@@ -304,7 +304,7 @@ function localLoad(){
     var raw = localStorage.getItem("sr_data"); if(!raw) return;
     var o = JSON.parse(raw);
     if(o.timer) Object.assign(timer, o.timer);
-    if(o.mine && o.mine.s) mine = o.mine;
+    if(o.mine && o.mine.s) mine = { s: normSessions(o.mine.s) };
   }catch(e){}
 }
 function pushTimer(patch){
@@ -319,16 +319,17 @@ function pushTimer(patch){
 var saveT=null;
 function pushMe(){
   paintMyTotals(); localSave();
-  if(!base) return;
+  if(!base || !myName) return;
   clearTimeout(saveT);
   saveT = setTimeout(function(){
     var s = {};
     Object.keys(mine.s).forEach(function(k){
       var b = mine.s[k];
+      if(!b || typeof b !== "object") return;
       s[k] = { items: packItems(normItems(b.items)), push: (+b.push)||0 };
     });
     base.child("people/"+myId).set({
-      name: myName || "Someone", color: myColor, s: s, at: Date.now()
+      name: myName, color: myColor, s: s, at: Date.now()
     }).catch(function(e){ showErr("Couldn't save your board: " + e.message); });
   }, 450);
 }
@@ -362,22 +363,58 @@ function packItems(arr){
   arr.forEach(function(it,i){ o[it.id] = { id:it.id, t:it.t||"", d:!!it.d, o:i }; });
   return o;
 }
+/* Firebase treats keys like "1"/"2" as array indices and hands back
+   [null, {...}]. Session keys are prefixed to stop that, and anything
+   already stored the old way is converted on read. */
+function normSessions(raw){
+  var out = {};
+  if(!raw || typeof raw !== "object") return out;
+  var keys = Array.isArray(raw) ? raw.map(function(_,i){ return i; }) : Object.keys(raw);
+  keys.forEach(function(k){
+    var b = raw[k];
+    if(!b || typeof b !== "object") return;
+    var name = String(k);
+    var id = /^\d+$/.test(name) ? "s"+name : name;
+    var prev = out[id];
+    var items = normItems(b.items), push = (+b.push)||0;
+    if(prev){ items = prev.items.concat(items); push = Math.max(prev.push, push); }
+    out[id] = { items: items, push: push };
+  });
+  return out;
+}
 function bucket(store,n){
-  var k=String(n);
-  if(!store.s[k]) store.s[k]={items:[],push:0};
+  var k = "s"+n;
+  if(!store.s[k] || typeof store.s[k] !== "object") store.s[k] = {items:[],push:0};
   store.s[k].items = normItems(store.s[k].items);
   store.s[k].push = (+store.s[k].push)||0;
   return store.s[k];
 }
 function readBucket(data,n){
-  var b = data && data.s && data.s[String(n)];
+  var s = data && data.s;
+  var b = s && typeof s === "object" ? (s["s"+n] || s[n]) : null;
+  if(!b || typeof b !== "object") b = null;
   return { items: normItems(b && b.items), push: (b && +b.push) || 0 };
 }
-function dayPush(d){ var t=0,s=d&&d.s; if(!s) return 0; for(var k in s) t+=(+s[k].push)||0; return t; }
+function dayPush(d){
+  var t=0, s=d&&d.s; if(!s || typeof s!=="object") return 0;
+  Object.keys(s).forEach(function(k){ var b=s[k]; if(b && typeof b==="object") t += (+b.push)||0; });
+  return t;
+}
 function dayDone(d){
-  var c=0, s=d&&d.s; if(!s) return 0;
-  for(var k in s){ normItems(s[k].items).forEach(function(it){ if(it.d) c++; }); }
+  var c=0, s=d&&d.s; if(!s || typeof s!=="object") return 0;
+  Object.keys(s).forEach(function(k){
+    var b=s[k]; if(!b || typeof b!=="object") return;
+    normItems(b.items).forEach(function(it){ if(it.d) c++; });
+  });
   return c;
+}
+function hasAnything(p){
+  if(!p) return false;
+  if(dayPush(p) > 0 || dayDone(p) > 0) return true;
+  var s = p.s; if(!s || typeof s!=="object") return false;
+  return Object.keys(s).some(function(k){
+    var b=s[k]; return b && typeof b==="object" && normItems(b.items).length > 0;
+  });
 }
 
 /* ---------- tally ---------- */
@@ -467,7 +504,13 @@ function buildBoard(){
   var d=derive(now()), board=$("#board");
   var ids=[myId];
   if(people && typeof people === "object"){
-    Object.keys(people).forEach(function(k){ if(k!==myId && people[k]) ids.push(k); });
+    Object.keys(people).forEach(function(k){
+      if(k===myId) return;
+      var p = people[k];
+      if(!p || typeof p !== "object") return;
+      if(!p.name && !online[k] && !hasAnything(p)) return;
+      ids.push(k);
+    });
   }
   board.innerHTML="";
   var totalPush=0, totalDone=0;
@@ -693,7 +736,7 @@ if(!configured){
       var v = s.val() || {};
       people = v;
       var m = v[myId];
-      if(m && m.s && !editingMine()) mine = { s: JSON.parse(JSON.stringify(m.s)) };
+      if(m && m.s && !editingMine()) mine = { s: normSessions(m.s) };
       buildBoard();
     });
 
