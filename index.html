@@ -104,7 +104,13 @@ html.is-break .challenge{display:flex}
 .done-row{display:flex; gap:8px; align-items:center}
 .step{width:36px; height:36px; border-radius:9px; border:1px solid var(--line); background:var(--panel-2); font-size:17px; line-height:1}
 
-.boardhead{display:flex; align-items:baseline; gap:10px; margin:30px 2px 12px; flex-wrap:wrap}
+.boardhead{display:flex; align-items:center; gap:10px; margin:30px 2px 12px; flex-wrap:wrap}
+.navbtn{
+  border:1px solid var(--line); background:var(--panel-2); color:var(--muted);
+  width:26px; height:26px; border-radius:7px; line-height:1; padding:0; font-size:15px;
+}
+.navbtn:hover:not(:disabled){color:var(--ink); border-color:var(--muted)}
+.navbtn:disabled{opacity:.3; cursor:default}
 .boardhead h2{font-size:16px}
 .boardhead span{font-size:13px; color:var(--muted)}
 .board{display:grid; grid-template-columns:repeat(auto-fill,minmax(252px,1fr)); gap:14px}
@@ -214,7 +220,10 @@ li.item.ro.done span{color:var(--muted); text-decoration:line-through}
   </section>
 
   <div class="boardhead">
+    <button class="navbtn" id="prevSess" aria-label="Previous session">‹</button>
     <h2 id="boardTitle">Targets for session 1</h2>
+    <button class="navbtn" id="nextSess" aria-label="Next session">›</button>
+    <button class="ghost" id="nowBtn" style="display:none">Back to now</button>
     <span id="boardSub"></span>
   </div>
   <div class="board" id="board"></div>
@@ -261,7 +270,9 @@ var online = {};            // id -> true
 var mine = { s:{} };
 var myId, myName, myColor;
 var soundOn = true, booted=false, lastPhase=null, lastSession=null, pageOpenedAt=Date.now();
-var seenOnline=false, quietUntil=0;
+var seenOnline=false, quietUntil=0, viewSession=null;
+function liveSession(){ return derive(now()).session; }
+function curSession(){ return viewSession || liveSession(); }
 function nameOf(id){ var p = people && people[id]; return (p && p.name) || "Someone"; }
 
 var $ = function(s){ return document.querySelector(s); };
@@ -352,7 +363,7 @@ function pushMe(){
     Object.keys(mine.s).forEach(function(k){
       var b = mine.s[k];
       if(!b || typeof b !== "object") return;
-      s[k] = { items: packItems(normItems(b.items)), push: (+b.push)||0 };
+      s[k] = { items: packItems(normItems(b.items)), push: (+b.push)||0, seeded: !!b.seeded };
     });
     base.child("people/"+myId).set({
       name: myName, color: myColor, s: s, at: Date.now()
@@ -404,7 +415,7 @@ function normSessions(raw){
     var prev = out[id];
     var items = normItems(b.items), push = (+b.push)||0;
     if(prev){ items = prev.items.concat(items); push = Math.max(prev.push, push); }
-    out[id] = { items: items, push: push };
+    out[id] = { items: items, push: push, seeded: !!b.seeded };
   });
   return out;
 }
@@ -434,6 +445,24 @@ function dayDone(d){
   });
   return c;
 }
+/* Anything you didn't finish follows you into the next session, so a
+   rollover never looks like your list was wiped. Runs once per session. */
+function carryForward(from, to){
+  if(!(from >= 1) || to <= from) return;
+  var prev = mine.s["s"+from];
+  if(!prev) return;
+  var next = mine.s["s"+to];
+  if(next && (next.seeded || normItems(next.items).length)) return;
+  var todo = normItems(prev.items).filter(function(it){ return !it.d; });
+  var b = bucket(mine, to);
+  b.seeded = true;
+  if(todo.length){
+    b.items = todo.map(function(it,i){ return { id: rid(), t: it.t, d:false, o:i }; });
+  }
+  pushMe();
+  if(todo.length) toast(todo.length === 1 ? "1 unfinished target carried over." : todo.length + " unfinished targets carried over.");
+}
+
 function hasAnything(p){
   if(!p) return false;
   if(dayPush(p) > 0 || dayDone(p) > 0) return true;
@@ -508,13 +537,22 @@ function paint(){
   $("#startBtn").textContent = timer.running ? "Pause" : (d.started ? "Resume" : "Start");
   $("#chTitle").textContent = timer.pushups+" pushup challenge";
   $("#doneBtn").textContent = "I did my "+timer.pushups;
-  $("#boardTitle").textContent = "Targets for session "+d.session;
+  var vs = curSession(), live = d.session;
+  $("#boardTitle").textContent = "Targets for session " + vs;
+  $("#prevSess").disabled = vs <= 1;
+  $("#nextSess").disabled = vs >= live;
+  $("#nowBtn").style.display = (vs !== live) ? "inline-block" : "none";
   if(document.activeElement!==$("#fMin")) $("#fMin").value = timer.focusMin;
   if(document.activeElement!==$("#bMin")) $("#bMin").value = timer.breakMin;
   if(document.activeElement!==$("#pTarget")) $("#pTarget").value = timer.pushups;
 }
 function editingMine(){ var a=document.activeElement; return !!(a && a.closest && a.closest(".col.me")); }
 
+function forceBoard(){
+  try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); }catch(e){}
+  pending = false;
+  buildBoard();
+}
 var pending=false;
 function buildBoard(){
   if(editingMine()){
@@ -527,7 +565,7 @@ function buildBoard(){
     }
     return;
   }
-  var d=derive(now()), board=$("#board");
+  var d=derive(now()), board=$("#board"), session=curSession();
   var ids=[myId];
   if(people && typeof people === "object"){
     Object.keys(people).forEach(function(k){
@@ -545,7 +583,7 @@ function buildBoard(){
     var data = isMe ? mine : (people[id]||{s:{}});
     try{
       totalPush += dayPush(data); totalDone += dayDone(data);
-      board.appendChild(column(id, isMe, data, d.session));
+      board.appendChild(column(id, isMe, data, session));
     }catch(err){
       if(isMe) showErr("Couldn't draw your column: " + err.message);
     }
@@ -646,7 +684,7 @@ function countMine(session){
 }
 function paintMyTotals(){
   var col=document.querySelector(".col.me"); if(!col) return;
-  var b=bucket(mine, derive(now()).session), tr=col.querySelector(".tallyrow");
+  var b=bucket(mine, curSession()), tr=col.querySelector(".tallyrow");
   tr.innerHTML="";
   tr.appendChild(tallySvg(b.push));
   tr.appendChild(el("span","num",String(b.push)));
@@ -706,6 +744,15 @@ $("#plus1").addEventListener("click", function(){ nudge(60000); });
 $("#plus5").addEventListener("click", function(){ nudge(300000); });
 $("#minus1").addEventListener("click", function(){ nudge(-60000); });
 
+$("#prevSess").addEventListener("click", function(){
+  viewSession = Math.max(1, curSession() - 1); paint(); buildBoard();
+});
+$("#nextSess").addEventListener("click", function(){
+  var n = Math.min(liveSession(), curSession() + 1);
+  viewSession = (n >= liveSession()) ? null : n; paint(); buildBoard();
+});
+$("#nowBtn").addEventListener("click", function(){ viewSession = null; paint(); buildBoard(); });
+
 function numField(sel,key,min,max){
   $(sel).addEventListener("change", function(){
     var v=Math.min(max,Math.max(min, parseInt($(sel).value,10)||min));
@@ -717,14 +764,14 @@ numField("#bMin","breakMin",1,60);
 numField("#pTarget","pushups",1,200);
 
 $("#doneBtn").addEventListener("click", function(){
-  var b=bucket(mine, derive(now()).session);
+  var b=bucket(mine, curSession());
   b.push=(b.push||0)+timer.pushups;
   pushMe(); beep([660,880]);
   toast("Logged "+timer.pushups+". Nice.");
   if(base) base.child("cheers").push({ name:myName||"Someone", n:timer.pushups, at:Date.now() });
 });
 $("#minusBtn").addEventListener("click", function(){
-  var b=bucket(mine, derive(now()).session);
+  var b=bucket(mine, curSession());
   b.push=Math.max(0,(b.push||0)-timer.pushups);
   pushMe();
 });
@@ -740,11 +787,12 @@ $("#nameBtn").addEventListener("click", askName);
 setInterval(function(){
   var d=derive(now());
   if(booted && d.started && (d.phase!==lastPhase || d.session!==lastSession)){
+    if(d.session > lastSession) carryForward(lastSession, d.session);
     if(Date.now() > quietUntil){
       if(d.phase==="break"){ beep([880,660,880]); toast(timer.pushups+" pushups — go."); }
       else { beep([520,700]); toast("Session "+d.session+". Set your targets."); }
     }
-    buildBoard();
+    forceBoard();
   }
   lastPhase=d.phase; lastSession=d.session; booted=true;
   paint();
