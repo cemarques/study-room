@@ -88,6 +88,13 @@ button{font:inherit; color:inherit; cursor:pointer}
 html.is-break .btn.primary{color:#fff}
 .mins{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); margin-left:auto; flex-wrap:wrap}
 .mins input{width:46px; padding:6px 7px; font:inherit; font-size:13px; text-align:center; border:1px solid var(--line); border-radius:7px; background:var(--panel-2); color:var(--ink)}
+.nudge{display:inline-flex; gap:4px; padding-left:4px}
+.chip{border:1px solid var(--line); background:transparent; border-radius:7px; padding:7px 10px; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums}
+.chip:hover{color:var(--ink); border-color:var(--muted)}
+.controls.sub{margin-top:12px; padding-top:12px; border-top:1px solid var(--line-soft); gap:12px}
+.btn.danger{color:var(--break); border-color:transparent; background:transparent; padding-left:0}
+.btn.danger:hover{border-color:var(--break)}
+.hint{font-size:12px; color:var(--muted)}
 
 .challenge{margin-top:14px; background:var(--panel); border:1px solid var(--accent); border-radius:14px; padding:20px 24px; display:none; gap:20px; align-items:center; flex-wrap:wrap}
 html.is-break .challenge{display:flex}
@@ -176,13 +183,22 @@ li.item.ro.done span{color:var(--muted); text-decoration:line-through}
     <div class="striplab"><span id="labF">50 min focus</span><span id="labB">10 min break</span></div>
     <div class="controls">
       <button class="btn primary" id="startBtn">Start</button>
+      <button class="btn" id="restartBtn">Restart session</button>
       <button class="btn" id="skipBtn">Skip ahead</button>
-      <button class="btn" id="resetBtn">Reset day</button>
+      <span class="nudge">
+        <button class="chip" id="minus1" title="One minute less">−1 min</button>
+        <button class="chip" id="plus1" title="One minute more">+1 min</button>
+        <button class="chip" id="plus5" title="Five minutes more">+5 min</button>
+      </span>
       <div class="mins">
         <label>Focus <input id="fMin" type="number" min="1" max="180" value="50"></label>
         <label>Break <input id="bMin" type="number" min="1" max="60" value="10"></label>
         <label>Pushups <input id="pTarget" type="number" min="1" max="200" value="10"></label>
       </div>
+    </div>
+    <div class="controls sub">
+      <button class="btn danger" id="resetBtn">Reset day</button>
+      <span class="hint">Puts the clock back to session 1 and clears everyone's targets and pushups</span>
     </div>
   </section>
 
@@ -291,9 +307,19 @@ function derive(t){
     session: idx+1,
     phase: inFocus ? "focus" : "break",
     remaining: inFocus ? f-within : cyc-within,
+    total: inFocus ? f : b,
+    elapsed: elapsed,
+    phaseStart: idx*cyc + (inFocus ? 0 : f),
     cycleFrac: within/cyc,
     started: timer.running || (timer.pausedElapsed||0) > 0
   };
+}
+/* Move the clock to a given point without disturbing anything else. */
+function setElapsed(e){
+  e = Math.max(0, e);
+  quietUntil = Date.now() + 1200;
+  if(timer.running) pushTimer({ startedAt: now() - e });
+  else pushTimer({ pausedElapsed: e });
 }
 function mmss(ms){ var t=Math.max(0,Math.ceil(ms/1000)); return Math.floor(t/60)+":"+String(t%60).padStart(2,"0"); }
 
@@ -663,6 +689,23 @@ $("#resetBtn").addEventListener("click", function(){
   buildBoard();
   toast("Fresh day. Board cleared for everyone.");
 });
+$("#restartBtn").addEventListener("click", function(){
+  var d = derive(now());
+  if(!d.started){ toast("Nothing running yet."); return; }
+  setElapsed(d.phaseStart);
+});
+function nudge(ms){
+  var d = derive(now());
+  if(!d.started){ toast("Start the clock first."); return; }
+  // adding time rewinds within the phase; never spill into the one before
+  var target = d.elapsed - ms;
+  var floor = d.phaseStart, ceil = d.phaseStart + d.total - 1000;
+  setElapsed(Math.min(ceil, Math.max(floor, target)));
+}
+$("#plus1").addEventListener("click", function(){ nudge(60000); });
+$("#plus5").addEventListener("click", function(){ nudge(300000); });
+$("#minus1").addEventListener("click", function(){ nudge(-60000); });
+
 function numField(sel,key,min,max){
   $(sel).addEventListener("change", function(){
     var v=Math.min(max,Math.max(min, parseInt($(sel).value,10)||min));
