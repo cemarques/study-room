@@ -125,6 +125,8 @@ li.item.ro.done span{color:var(--muted); text-decoration:line-through}
 .add{margin-top:8px; border:none; background:none; color:var(--muted); font-size:13px; padding:4px 0; font-weight:500}
 .add:hover{color:var(--accent)}
 .empty{font-size:13px; color:var(--muted); padding:6px 0 2px}
+.col.waiting{border-style:dashed; background:transparent}
+.emptytitle{font-weight:600; font-size:14px; margin-bottom:4px}
 .tallyrow{display:flex; align-items:center; gap:9px; margin-top:12px; padding-top:11px; border-top:1px solid var(--line-soft)}
 .tallyrow svg{display:block; overflow:visible}
 .tallyrow .num{font-family:"Bricolage Grotesque",sans-serif; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums}
@@ -243,6 +245,8 @@ var online = {};            // id -> true
 var mine = { s:{} };
 var myId, myName, myColor;
 var soundOn = true, booted=false, lastPhase=null, lastSession=null, pageOpenedAt=Date.now();
+var seenOnline=false, quietUntil=0;
+function nameOf(id){ var p = people && people[id]; return (p && p.name) || "Someone"; }
 
 var $ = function(s){ return document.querySelector(s); };
 function el(t,c,txt){ var n=document.createElement(t); if(c)n.className=c; if(txt!=null)n.textContent=txt; return n; }
@@ -318,10 +322,14 @@ function pushMe(){
   if(!base) return;
   clearTimeout(saveT);
   saveT = setTimeout(function(){
-    base.child("people/"+myId).set({
-      name: myName || "Someone", color: myColor,
-      s: JSON.parse(JSON.stringify(mine.s)), at: Date.now()
+    var s = {};
+    Object.keys(mine.s).forEach(function(k){
+      var b = mine.s[k];
+      s[k] = { items: packItems(normItems(b.items)), push: (+b.push)||0 };
     });
+    base.child("people/"+myId).set({
+      name: myName || "Someone", color: myColor, s: s, at: Date.now()
+    }).catch(function(e){ showErr("Couldn't save your board: " + e.message); });
   }, 450);
 }
 function announce(){
@@ -332,18 +340,45 @@ function announce(){
 }
 
 /* ---------- buckets ---------- */
+/* Firebase turns arrays into objects (and back) depending on holes, so
+   targets are normalised into a plain sorted array on every read. */
+function normItems(raw){
+  var out = [];
+  if(Array.isArray(raw)) out = raw.filter(Boolean);
+  else if(raw && typeof raw === "object"){
+    out = Object.keys(raw).map(function(k){ return raw[k]; }).filter(Boolean);
+  }
+  out.forEach(function(it,i){
+    if(!it.id) it.id = rid();
+    if(typeof it.o !== "number") it.o = i;
+    if(typeof it.t !== "string") it.t = "";
+    it.d = !!it.d;
+  });
+  out.sort(function(a,b){ return a.o - b.o; });
+  return out;
+}
+function packItems(arr){
+  var o = {};
+  arr.forEach(function(it,i){ o[it.id] = { id:it.id, t:it.t||"", d:!!it.d, o:i }; });
+  return o;
+}
 function bucket(store,n){
   var k=String(n);
   if(!store.s[k]) store.s[k]={items:[],push:0};
-  if(!Array.isArray(store.s[k].items)) store.s[k].items=[];
+  store.s[k].items = normItems(store.s[k].items);
+  store.s[k].push = (+store.s[k].push)||0;
   return store.s[k];
 }
 function readBucket(data,n){
   var b = data && data.s && data.s[String(n)];
-  return { items: (b && Array.isArray(b.items)) ? b.items : [], push: (b && +b.push) || 0 };
+  return { items: normItems(b && b.items), push: (b && +b.push) || 0 };
 }
 function dayPush(d){ var t=0,s=d&&d.s; if(!s) return 0; for(var k in s) t+=(+s[k].push)||0; return t; }
-function dayDone(d){ var c=0,s=d&&d.s; if(!s) return 0; for(var k in s){ var it=s[k].items||[]; for(var i=0;i<it.length;i++) if(it[i].d) c++; } return c; }
+function dayDone(d){
+  var c=0, s=d&&d.s; if(!s) return 0;
+  for(var k in s){ normItems(s[k].items).forEach(function(it){ if(it.d) c++; }); }
+  return c;
+}
 
 /* ---------- tally ---------- */
 function tallySvg(n){
@@ -377,9 +412,21 @@ function beep(seq){
   }catch(e){}
 }
 function toast(msg){
-  var t=el("div","toast",msg); $("#toasts").appendChild(t);
+  var box = $("#toasts");
+  while(box.children.length >= 3) box.removeChild(box.firstChild);
+  var t=el("div","toast",msg); box.appendChild(t);
   setTimeout(function(){ t.remove(); }, 3600);
 }
+function showErr(msg){
+  var bar = $("#setup");
+  bar.style.display = "block";
+  bar.innerHTML = "";
+  bar.appendChild(el("h3", null, "Something went wrong"));
+  bar.appendChild(el("p", null, msg));
+}
+window.addEventListener("error", function(e){
+  showErr((e.message||"Unknown error") + " — tell Claude this message.");
+});
 
 /* ---------- paint ---------- */
 function paint(){
@@ -419,17 +466,35 @@ function buildBoard(){
   }
   var d=derive(now()), board=$("#board");
   var ids=[myId];
-  Object.keys(people).forEach(function(k){ if(k!==myId) ids.push(k); });
+  if(people && typeof people === "object"){
+    Object.keys(people).forEach(function(k){ if(k!==myId && people[k]) ids.push(k); });
+  }
   board.innerHTML="";
   var totalPush=0, totalDone=0;
   ids.forEach(function(id){
     var isMe = id===myId;
     var data = isMe ? mine : (people[id]||{s:{}});
-    totalPush += dayPush(data); totalDone += dayDone(data);
-    board.appendChild(column(id, isMe, data, d.session));
+    try{
+      totalPush += dayPush(data); totalDone += dayDone(data);
+      board.appendChild(column(id, isMe, data, d.session));
+    }catch(err){
+      if(isMe) showErr("Couldn't draw your column: " + err.message);
+    }
   });
+  if(ids.length === 1){
+    var w = el("div","col waiting");
+    w.appendChild(el("div","emptytitle","Nobody else yet"));
+    w.appendChild(el("div","empty","Send your friends this page's link. They type a name and they're in — no account needed."));
+    var cp = el("button","add","Copy the link");
+    cp.addEventListener("click", function(){
+      try{ navigator.clipboard.writeText(location.href); toast("Link copied."); }
+      catch(e){ toast(location.href); }
+    });
+    w.appendChild(cp);
+    board.appendChild(w);
+  }
   var sub=[];
-  if(totalDone) sub.push(totalDone+" targets hit today");
+  if(totalDone) sub.push(totalDone+(totalDone===1?" target":" targets")+" hit today");
   if(totalPush) sub.push(totalPush+" pushups between you");
   $("#boardSub").textContent = sub.join(" · ");
   paintWho();
@@ -537,6 +602,7 @@ $("#startBtn").addEventListener("click", function(){
 });
 $("#skipBtn").addEventListener("click", function(){
   var d=derive(now());
+  quietUntil = Date.now() + 1200;
   if(!d.started){ $("#startBtn").click(); return; }
   if(timer.running) pushTimer({startedAt: timer.startedAt - d.remaining});
   else pushTimer({pausedElapsed: timer.pausedElapsed + d.remaining});
@@ -579,8 +645,10 @@ $("#nameBtn").addEventListener("click", askName);
 setInterval(function(){
   var d=derive(now());
   if(booted && d.started && (d.phase!==lastPhase || d.session!==lastSession)){
-    if(d.phase==="break"){ beep([880,660,880]); toast(timer.pushups+" pushups — go."); }
-    else { beep([520,700]); toast("Session "+d.session+". Set your targets."); }
+    if(Date.now() > quietUntil){
+      if(d.phase==="break"){ beep([880,660,880]); toast(timer.pushups+" pushups — go."); }
+      else { beep([520,700]); toast("Session "+d.session+". Set your targets."); }
+    }
     buildBoard();
   }
   lastPhase=d.phase; lastSession=d.session; booted=true;
@@ -629,7 +697,19 @@ if(!configured){
       buildBoard();
     });
 
-    base.child("online").on("value", function(s){ online = s.val() || {}; buildBoard(); });
+    base.child("online").on("value", function(s){
+      var next = s.val() || {}, first = !seenOnline;
+      if(!first){
+        Object.keys(next).forEach(function(id){
+          if(id !== myId && !online[id]) toast(nameOf(id) + " joined.");
+        });
+        Object.keys(online).forEach(function(id){
+          if(id !== myId && !next[id]) toast(nameOf(id) + " left.");
+        });
+      }
+      online = next; seenOnline = true;
+      buildBoard();
+    });
 
     base.child("cheers").limitToLast(1).on("child_added", function(s){
       var v = s.val() || {};
