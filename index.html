@@ -214,6 +214,19 @@ html.overlay li.item input[type=text],
 html.overlay li.item.ro span{font-size:13px}
 html.overlay .tallyrow{margin-top:7px; padding-top:7px}
 html.overlay .muted,html.overlay .lbl{color:#9FB0C2}
+/* Panel background, chosen with &bg= : dark (default), black, none */
+html.overlay.bg-black .stage,
+html.overlay.bg-black .col,
+html.overlay.bg-black .challenge{background:#000; border-color:rgba(255,255,255,.16)}
+html.overlay.bg-none .stage,
+html.overlay.bg-none .col,
+html.overlay.bg-none .challenge{
+  background:transparent; border-color:transparent; box-shadow:none;
+}
+html.overlay.bg-none .wrap{
+  text-shadow:0 1px 3px rgba(0,0,0,.95), 0 0 12px rgba(0,0,0,.7);
+}
+html.overlay.bg-none .strip .seg{border-color:rgba(255,255,255,.35); background:rgba(0,0,0,.35)}
 html.timeronly .boardhead,
 html.timeronly .board,
 html.timeronly .challenge{display:none}
@@ -334,13 +347,18 @@ var mine = { s:{} };
 var myId, myName, myColor;
 var soundOn = true, booted=false, lastPhase=null, lastSession=null, pageOpenedAt=Date.now();
 var seenOnline=false, quietUntil=0, viewSession=null;
-var VIEW = "";
-try{ VIEW = (new URLSearchParams(location.search)).get("view") || ""; }catch(e){}
+var VIEW = "", BG = "";
+try{
+  var qp = new URLSearchParams(location.search);
+  VIEW = qp.get("view") || "";
+  BG = qp.get("bg") || "";
+}catch(e){}
 var TIMERONLY = VIEW === "timer";
 var OVERLAY = TIMERONLY || VIEW === "overlay";
 if(OVERLAY){
   document.documentElement.classList.add("overlay");
   if(TIMERONLY) document.documentElement.classList.add("timeronly");
+  if(BG === "black" || BG === "none") document.documentElement.classList.add("bg-" + BG);
   soundOn = false;
 }
 function liveSession(){ return derive(now()).session; }
