@@ -168,6 +168,55 @@ li.item.ro.done span{color:var(--muted); text-decoration:line-through}
 .modal h2{font-size:19px; margin-bottom:6px}
 .modal p{margin:0 0 16px; color:var(--muted); font-size:14px}
 .modal input{width:100%; padding:11px 13px; font:inherit; border:1px solid var(--line); border-radius:9px; background:var(--panel-2); color:var(--ink); margin-bottom:12px}
+/* ---------- OBS overlay modes ----------
+   ?view=overlay  compact translucent panel: clock + everyone's targets
+   ?view=timer    clock only
+   Both are spectator views: no name prompt, no writes, no sound. */
+html.overlay body{background:transparent; transition:none}
+html.overlay .wrap{max-width:400px; padding:10px; margin:0}
+html.overlay .bar,
+html.overlay .controls,
+html.overlay .controls.sub,
+html.overlay .note,
+html.overlay .setup,
+html.overlay .navbtn,
+html.overlay #nowBtn,
+html.overlay .add,
+html.overlay li.item .x,
+html.overlay .col.waiting .add{display:none}
+html.overlay .stage,
+html.overlay .col,
+html.overlay .challenge{
+  background:rgba(10,15,21,.74);
+  border-color:rgba(255,255,255,.14);
+  box-shadow:0 2px 14px rgba(0,0,0,.35);
+  color:#EEF3F8;
+}
+html.overlay .stage{padding:14px 18px 12px}
+html.overlay .clock{font-size:clamp(40px,8vw,58px); margin:0}
+html.overlay .phase{font-size:14px}
+html.overlay .sess{font-size:12px}
+html.overlay .strip{height:7px; margin:9px 0 3px}
+html.overlay .striplab{font-size:11px}
+html.overlay .challenge{margin-top:8px; padding:11px 16px}
+html.overlay .challenge h2{font-size:15px}
+html.overlay .challenge p,
+html.overlay .challenge .done-row{display:none}
+html.overlay .boardhead{margin:10px 2px 6px}
+html.overlay .boardhead h2{font-size:13px; color:var(--muted); font-weight:600}
+html.overlay #boardSub{font-size:12px}
+html.overlay .board{grid-template-columns:1fr; gap:6px}
+html.overlay .col{padding:9px 13px 8px; border-radius:11px}
+html.overlay .colhead{margin-bottom:6px}
+html.overlay .colhead .nm{font-size:13px}
+html.overlay li.item{padding:1px 0}
+html.overlay li.item input[type=text],
+html.overlay li.item.ro span{font-size:13px}
+html.overlay .tallyrow{margin-top:7px; padding-top:7px}
+html.overlay .muted,html.overlay .lbl{color:#9FB0C2}
+html.timeronly .boardhead,
+html.timeronly .board,
+html.timeronly .challenge{display:none}
 @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
 @media (max-width:560px){.wrap{padding:14px 14px 50px}.stage{padding:20px 18px 16px}.mins{margin-left:0; width:100%}}
 </style>
@@ -285,6 +334,15 @@ var mine = { s:{} };
 var myId, myName, myColor;
 var soundOn = true, booted=false, lastPhase=null, lastSession=null, pageOpenedAt=Date.now();
 var seenOnline=false, quietUntil=0, viewSession=null;
+var VIEW = "";
+try{ VIEW = (new URLSearchParams(location.search)).get("view") || ""; }catch(e){}
+var TIMERONLY = VIEW === "timer";
+var OVERLAY = TIMERONLY || VIEW === "overlay";
+if(OVERLAY){
+  document.documentElement.classList.add("overlay");
+  if(TIMERONLY) document.documentElement.classList.add("timeronly");
+  soundOn = false;
+}
 function liveSession(){ return derive(now()).session; }
 function curSession(){ return viewSession || liveSession(); }
 function nameOf(id){ var p = people && people[id]; return (p && p.name) || "Someone"; }
@@ -401,6 +459,7 @@ function pushTimer(patch){
 }
 var saveT=null;
 function pushMe(){
+  if(OVERLAY) return;
   paintMyTotals(); localSave();
   if(!base || !myName) return;
   clearTimeout(saveT);
@@ -417,7 +476,7 @@ function pushMe(){
   }, 450);
 }
 function announce(){
-  if(!base || !connected) return;
+  if(OVERLAY || !base || !connected) return;
   var p = base.child("online/"+myId);
   p.onDisconnect().remove();
   p.set(true);
@@ -635,10 +694,10 @@ function buildBoard(){
   }
   var d=derive(now()), board=$("#board"), session=curSession();
   ensureCarry(d.session);
-  var ids=[myId];
+  var ids = OVERLAY ? [] : [myId];
   if(people && typeof people === "object"){
     Object.keys(people).forEach(function(k){
-      if(k===myId) return;
+      if(!OVERLAY && k===myId) return;
       var p = people[k];
       if(!p || typeof p !== "object") return;
       if(!online[k] && !hasAnything(p)) return;
@@ -657,7 +716,7 @@ function buildBoard(){
       if(isMe) showErr("Couldn't draw your column: " + err.message);
     }
   });
-  if(ids.length === 1){
+  if(ids.length === (OVERLAY ? 0 : 1)){
     var w = el("div","col waiting");
     w.appendChild(el("div","emptytitle","Nobody else yet"));
     w.appendChild(el("div","empty","Send your friends this page's link. They type a name and they're in — no account needed."));
@@ -688,7 +747,7 @@ function fillTally(tr, isMe, data, session){
   tr.innerHTML = "";
   var b = readBucket(data, session);
   tr.appendChild(tallySvg(b.push));
-  if(isMe){
+  if(isMe && !OVERLAY){
     var minus = el("button","tick","−");
     minus.title = "Take off " + timer.pushups;
     minus.setAttribute("aria-label", minus.title);
@@ -906,7 +965,7 @@ loadMe();
 localLoad();
 paint();
 buildBoard();
-if(!myName) askName();
+if(!myName && !OVERLAY) askName();
 
 var configured = FB.apiKey.indexOf("PASTE") < 0 && FB.databaseURL.indexOf("PASTE") < 0;
 if(!configured){
